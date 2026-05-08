@@ -27,7 +27,6 @@ router.post("/login", async (req, res) => {
       return res.status(404).json({ message: "Employee not found" });
     }
     const isMatch = await bcrypt.compare(password, employee.password);
-    console.log("Password match:", isMatch); // Debugging line
     if (!isMatch) {
       return res.status(400).json({ message: "Invalid credentials" });
     }

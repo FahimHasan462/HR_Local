@@ -13,11 +13,11 @@ export const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const success = login(email, password);
-    if (!success) {
-      setError("Invalid email or password.");
+    const result = await login(email, password);
+    if (!result.success) {
+      setError(result.message ?? "Invalid email or password.");
       return;
     }
     setError("");

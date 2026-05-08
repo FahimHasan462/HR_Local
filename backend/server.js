@@ -5,7 +5,11 @@ require("dotenv").config();
 
 const app = express();
 
-app.use(cors());
+app.use(cors({
+    origin: "http://192.168.0.197:8080", 
+    credentials: true,
+     methods: ["GET", "POST", "PUT", "DELETE"],
+  }));
 app.use(express.json());
 
 // Routes

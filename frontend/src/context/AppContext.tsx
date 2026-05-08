@@ -1,10 +1,15 @@
 import { createContext, useContext, useState, ReactNode } from "react";
-import { employees as seed, Employee, Role, LeaveType, LeaveRecord } from "@/data/employees";
+import { Employee, Role, LeaveType, LeaveRecord } from "@/data/employees";
 import { HrComplaint, HrComplaintNotification } from "@/data/hrComplaints";
+
+type LoginResult = {
+  success: boolean;
+  message?: string;
+};
 
 type Ctx = {
   currentUser: Employee | null;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, password: string) => Promise<LoginResult>;
   logout: () => void;
   employees: Employee[];
   hrComplaints: HrComplaint[];
@@ -25,18 +30,115 @@ const AppCtx = createContext<Ctx | null>(null);
 const avatarFor = (role: Role) =>
   role === "artist" ? "🎨" : role === "management" ? "🎬" : role === "IT" ? "🖥️" : "💼";
 
+type BackendLeave = {
+  _id?: string;
+  id?: string;
+  date?: string;
+  type?: "sick" | "casual" | "unpaid";
+  reason?: string;
+};
+
+type BackendEmployee = {
+  _id?: string;
+  id?: string;
+  name?: string;
+  role?: Role;
+  title?: string;
+  department?: string;
+  email?: string;
+  phone?: string;
+  joined?: string;
+  nid?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  avatar?: string;
+  bio?: string;
+  projects?: string[];
+  sickLeave?: number;
+  paidLeave?: number;
+  casualLeave?: number;
+  unpaidLeave?: number;
+  sickLeaveTotal?: number;
+  paidLeaveTotal?: number;
+  casualLeaveTotal?: number;
+  leaves?: BackendLeave[];
+};
+
+const toFrontendLeaveType = (type: BackendLeave["type"]): LeaveType =>
+  type === "casual" ? "paid" : type === "unpaid" ? "unpaid" : "sick";
+
+const normalizeEmployee = (employee: BackendEmployee): Employee => {
+  const role = employee.role ?? "artist";
+  const id = employee._id ?? employee.id ?? `e${Date.now()}`;
+  const leaves = (employee.leaves ?? []).map((leave, index) => ({
+    id: leave._id ?? leave.id ?? `l${index}`,
+    date: leave.date ?? new Date().toISOString().slice(0, 10),
+    type: toFrontendLeaveType(leave.type),
+    reason: leave.reason ?? "",
+  }));
+
+  return {
+    id,
+    name: employee.name ?? "Unknown",
+    role,
+    title: employee.title ?? "Employee",
+    department: employee.department ?? role.toUpperCase(),
+    email: employee.email ?? "",
+    phone: employee.phone ?? "",
+    joined: employee.joined ?? new Date().toISOString().slice(0, 10),
+    nid: employee.nid ?? "",
+    presentAddress: employee.presentAddress ?? "",
+    permanentAddress: employee.permanentAddress ?? "",
+    avatar: employee.avatar || avatarFor(role),
+    bio: employee.bio ?? "Team member",
+    projects: employee.projects ?? [],
+    sickLeave: employee.sickLeave ?? 0,
+    paidLeave: employee.paidLeave ?? employee.casualLeave ?? 0,
+    sickLeaveTotal: employee.sickLeaveTotal ?? 12,
+    paidLeaveTotal: employee.paidLeaveTotal ?? employee.casualLeaveTotal ?? 20,
+    leaves,
+  };
+};
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [list, setList] = useState<Employee[]>(seed);
+  const [list, setList] = useState<Employee[]>([]);
   const [hrComplaints, setHrComplaints] = useState<HrComplaint[]>([]);
   const [hrComplaintNotifications, setHrComplaintNotifications] = useState<HrComplaintNotification[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const currentUser = list.find((e) => e.id === currentUserId) ?? null;
 
-  const login = (email: string, password: string) => {
-    if (!email.trim() || !password.trim()) return false;
-    const user = list.find((e) => e.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
-    setCurrentUserId(user?.id ?? null);
-    return !!user;
+  const login = async (email: string, password: string): Promise<LoginResult> => {
+    if (!email.trim() || !password.trim()) {
+      return { success: false, message: "Email and password are required." };
+    }
+
+    try {
+      const response = await fetch("http://localhost:5000/api/employees/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, message: data?.message ?? "Login failed." };
+      }
+
+      if (!data?.employee) {
+        return { success: false, message: "No employee returned from server." };
+      }
+
+      const normalizedEmployee = normalizeEmployee(data.employee as BackendEmployee);
+      setList((prev) => {
+        const withoutCurrent = prev.filter((employee) => employee.id !== normalizedEmployee.id);
+        return [normalizedEmployee, ...withoutCurrent];
+      });
+      setCurrentUserId(normalizedEmployee.id);
+      return { success: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to reach server.";
+      return { success: false, message };
+    }
   };
   const logout = () => setCurrentUserId(null);
 
