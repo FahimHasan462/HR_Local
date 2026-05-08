@@ -4,7 +4,7 @@ import { HrComplaint, HrComplaintNotification } from "@/data/hrComplaints";
 
 type Ctx = {
   currentUser: Employee | null;
-  login: (role: Role) => void;
+  login: (email: string, password: string) => boolean;
   logout: () => void;
   employees: Employee[];
   hrComplaints: HrComplaint[];
@@ -32,9 +32,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const currentUser = list.find((e) => e.id === currentUserId) ?? null;
 
-  const login = (role: Role) => {
-    const user = list.find((e) => e.role === role) ?? null;
+  const login = (email: string, password: string) => {
+    if (!email.trim() || !password.trim()) return false;
+    const user = list.find((e) => e.email.toLowerCase() === email.trim().toLowerCase()) ?? null;
     setCurrentUserId(user?.id ?? null);
+    return !!user;
   };
   const logout = () => setCurrentUserId(null);
 

@@ -29,7 +29,7 @@ export const AppHeader = () => {
           </div>
           <RoleBadge role={currentUser.role} />
           <ThemeToggle />
-          {currentUser.role === "hr" && <HrNotificationBell />}
+          <HrNotificationBell />
           <Button variant="ghost" size="sm" onClick={logout} className="gap-1.5">
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Sign out</span>

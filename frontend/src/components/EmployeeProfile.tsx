@@ -19,7 +19,7 @@ const formatDate = (iso: string) =>
 const Stat = ({ label, used, total, tone }: { label: string; used: number; total: number; tone: "primary" | "secondary" }) => {
   const pct = Math.min(100, (used / total) * 100);
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+    <div className="h-full rounded-2xl border border-border bg-card p-5 shadow-soft">
       <div className="flex items-baseline justify-between">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
         <p className="text-sm font-semibold">
@@ -38,6 +38,8 @@ const Stat = ({ label, used, total, tone }: { label: string; used: number; total
   );
 };
 
+const monthKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}`;
+
 export const EmployeeProfile = ({
   employee,
   showLeaveHistory = false,
@@ -49,6 +51,9 @@ export const EmployeeProfile = ({
 }) => {
   const [openLeave, setOpenLeave] = useState<LeaveRecord | null>(null);
   const [openComplaint, setOpenComplaint] = useState<HrComplaint | null>(null);
+  const currentMonthUnpaidLeaves = employee.leaves.filter(
+    (leave) => leave.type === "unpaid" && monthKey(new Date(leave.date)) === monthKey(new Date()),
+  ).length;
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-3xl bg-gradient-hero p-8 text-primary-foreground shadow-glow">
@@ -164,9 +169,17 @@ export const EmployeeProfile = ({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Stat label="Sick Leave Used" used={employee.sickLeave} total={employee.sickLeaveTotal} tone="secondary" />
-        <Stat label="Paid Leave Used" used={employee.paidLeave} total={employee.paidLeaveTotal} tone="primary" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-7">
+        <div className="lg:col-span-3">
+          <Stat label="Sick Leave Used" used={employee.sickLeave} total={employee.sickLeaveTotal} tone="secondary" />
+        </div>
+        <div className="lg:col-span-3">
+          <Stat label="Paid Leave Used" used={employee.paidLeave} total={employee.paidLeaveTotal} tone="primary" />
+        </div>
+        <div className="h-full rounded-2xl border border-border bg-card p-5 shadow-soft lg:col-span-1">
+          <p className="text-sm font-medium text-muted-foreground">Unpaid leave this month</p>
+          <p className="mt-3 text-2xl font-bold">{currentMonthUnpaidLeaves}</p>
+        </div>
       </div>
 
       {anonymousHrComplaintsAgainst !== undefined && (

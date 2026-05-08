@@ -1,16 +1,27 @@
-import { Sparkles, Palette, Clapperboard, Briefcase } from "lucide-react";
-import { Role, roleMeta } from "@/data/employees";
+import { FormEvent, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { ThemeToggle } from "./ThemeToggle";
-
-const roles: { role: Role; icon: typeof Palette; gradient: string }[] = [
-  { role: "artist", icon: Palette, gradient: "bg-gradient-primary" },
-  { role: "management", icon: Clapperboard, gradient: "bg-gradient-secondary" },
-  { role: "hr", icon: Briefcase, gradient: "bg-gradient-accent" },
-];
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 export const Login = () => {
   const { login } = useApp();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const success = login(email, password);
+    if (!success) {
+      setError("Invalid email or password.");
+      return;
+    }
+    setError("");
+  };
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-background">
       <div className="absolute inset-0 bg-gradient-mesh" />
@@ -33,31 +44,36 @@ export const Login = () => {
           </p>
         </div>
 
-        <div className="grid w-full max-w-4xl gap-5 sm:grid-cols-3">
-          {roles.map(({ role, icon: Icon, gradient }) => {
-            const meta = roleMeta[role];
-            return (
-              <button
-                key={role}
-                onClick={() => login(role)}
-                className="group relative overflow-hidden rounded-3xl border border-border bg-card p-6 text-left shadow-card transition-bounce hover:-translate-y-2 hover:shadow-glow"
-              >
-                <div className={`absolute inset-x-0 top-0 h-1.5 ${gradient}`} />
-                <div className={`mb-5 inline-flex h-14 w-14 items-center justify-center rounded-2xl ${gradient} shadow-soft transition-bounce group-hover:scale-110 group-hover:rotate-6`}>
-                  <Icon className="h-7 w-7 text-primary-foreground" />
-                </div>
-                <div className="mb-1 flex items-center gap-2">
-                  <h3 className="text-xl font-bold">{meta.label}</h3>
-                  <span className="text-2xl">{meta.emoji}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">{meta.tagline}</p>
-                <div className="mt-5 inline-flex items-center text-sm font-semibold text-primary">
-                  Sign in →
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <form onSubmit={onSubmit} className="w-full max-w-md space-y-4 rounded-3xl border border-border bg-card/90 p-6 shadow-card backdrop-blur-md">
+          <div className="space-y-2">
+            <Label htmlFor="login-email">Email</Label>
+            <Input
+              id="login-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@company.com"
+              autoComplete="email"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="login-password">Password</Label>
+            <Input
+              id="login-password"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter your password"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <Button type="submit" className="w-full">
+            Log in
+          </Button>
+        </form>
 
       </div>
     </div>

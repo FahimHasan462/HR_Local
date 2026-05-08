@@ -17,7 +17,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <AppHeader />
       <main className="container py-8">
-        {currentUser.role === "artist" ? (
+        {currentUser.role === "artist" || currentUser.role === "IT" ? (
           <div className="mx-auto max-w-5xl">
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
