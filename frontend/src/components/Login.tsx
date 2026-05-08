@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Sparkles } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import { ThemeToggle } from "./ThemeToggle";
 import { Input } from "@/components/ui/input";
@@ -70,9 +71,17 @@ export const Login = () => {
             />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <Button type="submit" className="w-full">
-            Log in
-          </Button>
+          <div className="space-y-3">
+            <Button type="submit" className="w-full">
+              Log in
+            </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              New here?{" "}
+              <Link to="/register" className="font-medium text-primary hover:underline">
+                Register
+              </Link>
+            </p>
+          </div>
         </form>
 
       </div>

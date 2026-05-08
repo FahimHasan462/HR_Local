@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const leaveRecordSchema = new mongoose.Schema({
   date:   { type: String, required: true },
-  type:   { type: String, enum: ["sick", "casual"], required: true },
+  type:   { type: String, enum: ["sick", "casual", "unpaid"], required: true },
   reason: { type: String, required: true },
 });
 
@@ -26,7 +26,6 @@ employeeSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 employeeSchema.methods.comparePassword = async function (enteredPassword) {
