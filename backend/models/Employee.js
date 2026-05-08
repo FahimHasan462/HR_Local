@@ -18,8 +18,6 @@ const employeeSchema = new mongoose.Schema({
   sickLeave:        { type: Number, default: 0 },
   casualLeave:      { type: Number, default: 0 },
   unpaidLeave:      { type: Number, default: 0 },
-  sickLeaveTotal:   { type: Number, default: 12 },
-  casualLeaveTotal: { type: Number, default: 10 },
   leaves:           [leaveRecordSchema],
 });
 
@@ -35,4 +33,4 @@ employeeSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model("Employee", employeeSchema);
+module.exports = mongoose.model("Employee", employeeSchema,"employees");
