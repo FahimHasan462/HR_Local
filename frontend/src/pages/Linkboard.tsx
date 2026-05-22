@@ -97,7 +97,7 @@ const Linkboard = () => {
   const [reorderSaving, setReorderSaving] = useState(false);
 
   const isManagement = currentUser?.role === "management";
-  const canDragPosts = isManagement;
+  const canDragPosts = true;
 
   if (!currentUser) return <Navigate to="/" replace />;
 
@@ -295,8 +295,8 @@ const Linkboard = () => {
               )}
             </div>
 
-            {isManagement && (
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
+              {isManagement && (
                 <Button
                   type="button"
                   variant={showCreateForm ? "secondary" : "default"}
@@ -309,17 +309,17 @@ const Linkboard = () => {
                   <Plus className="h-4 w-4" />
                   New Post
                 </Button>
-                <Button
-                  type="button"
-                  variant={showCalendar ? "secondary" : "outline"}
-                  className="gap-2"
-                  onClick={() => setShowCalendar((v) => !v)}
-                >
-                  <Calendar className="h-4 w-4" />
-                  Calendar
-                </Button>
-              </div>
-            )}
+              )}
+              <Button
+                type="button"
+                variant={showCalendar ? "secondary" : "outline"}
+                className="gap-2"
+                onClick={() => setShowCalendar((v) => !v)}
+              >
+                <Calendar className="h-4 w-4" />
+                Calendar
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -359,7 +359,7 @@ const Linkboard = () => {
           </form>
         )}
 
-        {isManagement && showCalendar && (
+        {showCalendar && (
           <div className="mb-8 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
             {CALENDAR_EMBED_URL ? (
               <iframe

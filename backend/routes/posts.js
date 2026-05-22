@@ -88,7 +88,7 @@ router.post("/", managementOnly, async (req, res) => {
   }
 });
 
-router.put("/reorder", managementOnly, async (req, res) => {
+router.put("/reorder", async (req, res) => {
   const { orderedIds } = req.body;
 
   if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
