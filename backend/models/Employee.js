@@ -5,7 +5,7 @@ const leaveRecordSchema = new mongoose.Schema({
   date:   { type: String, required: true },
   type:   { type: String, enum: ["sick", "casual", "unpaid"], required: true },
   reason: { type: String, required: true },
-});
+}, { _id: true });
 
 const employeeSchema = new mongoose.Schema({
   name:             { type: String, required: true },

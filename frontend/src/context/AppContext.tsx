@@ -2,10 +2,7 @@ import { createContext, useContext, useState, ReactNode } from "react";
 import { Employee, Role, LeaveType, LeaveRecord } from "@/data/employees";
 import { HrComplaint, HrComplaintNotification } from "@/data/hrComplaints";
 
-type LoginResult = {
-  success: boolean;
-  message?: string;
-};
+type LoginResult = {success: boolean; message?: string;};
 
 type Ctx = {
   currentUser: Employee | null;
@@ -30,7 +27,7 @@ const AppCtx = createContext<Ctx | null>(null);
 const avatarFor = (role: Role) =>
   role === "artist" ? "🎨" : role === "management" ? "🎬" : role === "IT" ? "🖥️" : "💼";
 
-type BackendLeave = {
+type Leave = {
   _id?: string;
   id?: string;
   date?: string;
@@ -61,15 +58,15 @@ type BackendEmployee = {
   sickLeaveTotal?: number;
   paidLeaveTotal?: number;
   casualLeaveTotal?: number;
-  leaves?: BackendLeave[];
+  leaves?: Leave[];
 };
 
-const toFrontendLeaveType = (type: BackendLeave["type"]): LeaveType =>
+const toFrontendLeaveType = (type: Leave["type"]): LeaveType =>
   type === "casual" ? "paid" : type === "unpaid" ? "unpaid" : "sick";
 
 const normalizeEmployee = (employee: BackendEmployee): Employee => {
-  const role = employee.role ?? "artist";
-  const id = employee._id ?? employee.id ?? `e${Date.now()}`;
+  const role = employee.role;
+  const id = employee._id;
   const leaves = (employee.leaves ?? []).map((leave, index) => ({
     id: leave._id ?? leave.id ?? `l${index}`,
     date: leave.date ?? new Date().toISOString().slice(0, 10),
