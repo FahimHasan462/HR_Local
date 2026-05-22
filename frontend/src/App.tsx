@@ -5,8 +5,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/context/ThemeContext";
 import Index from "./pages/Index.tsx";
+import Linkboard from "./pages/Linkboard.tsx";
 import Register from "./pages/Register.tsx";
+import ForgotPassword from "./pages/ForgotPassword.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import { AuthenticatedShell } from "./components/AuthenticatedShell.tsx";
 
 const queryClient = new QueryClient();
 
@@ -19,7 +22,16 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route
+              path="/linkboard"
+              element={
+                <AuthenticatedShell>
+                  <Linkboard />
+                </AuthenticatedShell>
+              }
+            />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

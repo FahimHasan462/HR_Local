@@ -1,0 +1,15 @@
+{
+  "name": "hr-local",
+  "private": true,
+  "version": "1.0.0",
+  "description": "HR Local — frontend + backend",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start": "concurrently -n backend,frontend -c blue,green \"npm run start --prefix backend\" \"npm run preview --prefix frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

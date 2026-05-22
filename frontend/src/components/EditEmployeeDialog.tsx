@@ -1,65 +1,84 @@
-import { useState } from "react";
-import { type Role } from "@/types/employee";
-import { useApp } from "@/context/AppContext";
+import { useEffect, useState } from "react";
+import { Employee, useApp } from "@/context/AppContext";
+import { asRole, type Role } from "@/types/employee";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
-const empty = {
-  name: "",
-  role: "artist" as Role,
-  title: "",
-  department: "",
-  email: "",
-  phone: "",
-  joined: new Date().toISOString().slice(0, 10),
-  nid: "",
-  presentAddress: "",
-  permanentAddress: "",
+type FormState = {
+  name: string;
+  role: Role;
+  title: string;
+  department: string;
+  email: string;
+  phone: string;
+  joined: string;
+  nid: string;
+  presentAddress: string;
+  permanentAddress: string;
+  bio: string;
 };
 
-export const AddEmployeeDialog = () => {
-  const { addEmployee } = useApp();
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState(empty);
+const toForm = (emp: Employee): FormState => ({
+  name: emp.name,
+  role: asRole(emp.role),
+  title: emp.title ?? "",
+  department: emp.department ?? "",
+  email: emp.email ?? "",
+  phone: emp.phone ?? "",
+  joined: emp.joined?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+  nid: emp.nid ?? "",
+  presentAddress: emp.presentAddress ?? "",
+  permanentAddress: emp.permanentAddress ?? "",
+  bio: emp.bio ?? "",
+});
 
-  const update = (k: keyof typeof empty, v: string) =>
-    setForm((f) => ({ ...f, [k]: v }));
+type Props = {
+  employee: Employee | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+export const EditEmployeeDialog = ({ employee, open, onOpenChange }: Props) => {
+  const { updateEmployee } = useApp();
+  const [form, setForm] = useState<FormState | null>(null);
+
+  useEffect(() => {
+    if (employee && open) setForm(toForm(employee));
+  }, [employee, open]);
+
+  if (!employee || !form) return null;
+
+  const update = (k: keyof FormState, v: string) =>
+    setForm((f) => (f ? { ...f, [k]: v } : f));
 
   const submit = async () => {
     if (!form.name || !form.email || !form.title) {
       toast.error("Please fill in name, title, and email");
       return;
     }
-    const ok = await addEmployee(form);
+    const ok = await updateEmployee(employee.id!, form);
     if (!ok) {
-      toast.error("Could not add employee. Check the server or if the email already exists.");
+      toast.error("Could not update employee. Please try again.");
       return;
     }
-    toast.success(`${form.name} added to the team 🎉`);
-    setForm(empty);
-    setOpen(false);
+    toast.success(`${form.name} updated`);
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-1.5 bg-gradient-primary text-primary-foreground shadow-soft hover:opacity-90">
-          <UserPlus className="h-4 w-4" /> Add employee
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add a new teammate</DialogTitle>
+          <DialogTitle>Edit {employee.name}</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-2 sm:grid-cols-2">
@@ -83,6 +102,10 @@ export const AddEmployeeDialog = () => {
           <Field label="Joining date" type="date" value={form.joined} onChange={(v) => update("joined", v)} />
           <Field label="NID number" value={form.nid} onChange={(v) => update("nid", v)} />
           <div className="space-y-1.5 sm:col-span-2">
+            <Label>Bio</Label>
+            <Textarea rows={2} value={form.bio} onChange={(e) => update("bio", e.target.value)} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
             <Label>Present address</Label>
             <Textarea rows={2} value={form.presentAddress} onChange={(e) => update("presentAddress", e.target.value)} />
           </div>
@@ -93,8 +116,8 @@ export const AddEmployeeDialog = () => {
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} className="bg-gradient-primary text-primary-foreground">Add employee</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={submit} className="bg-gradient-primary text-primary-foreground">Save changes</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

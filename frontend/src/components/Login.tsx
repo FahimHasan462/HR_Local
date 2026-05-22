@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import { ThemeToggle } from "./ThemeToggle";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 
 export const Login = () => {
   const { login } = useApp();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,6 +22,7 @@ export const Login = () => {
       return;
     }
     setError("");
+    navigate("/", { replace: true });
   };
 
   return (
@@ -53,7 +55,7 @@ export const Login = () => {
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@company.com"
+              placeholder="yourSkibidy@gmail.com"
               autoComplete="email"
               required
             />
@@ -75,6 +77,11 @@ export const Login = () => {
             <Button type="submit" className="w-full">
               Log in
             </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              <Link to="/forgot-password" className="font-medium text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </p>
             <p className="text-center text-xs text-muted-foreground">
               New here?{" "}
               <Link to="/register" className="font-medium text-primary hover:underline">

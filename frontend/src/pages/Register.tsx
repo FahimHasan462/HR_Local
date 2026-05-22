@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -16,12 +17,39 @@ const Register = () => {
   const [nid, setNid] = useState("");
   const [presentAddress, setPresentAddress] = useState("");
   const [permanentAddress, setPermanentAddress] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // For now this is a frontend-only flow; hook up API here later if needed.
-    toast.success("regestration sucessful . Please Wait for HR aproval");
-    navigate("/");
+    setSubmitting(true);
+
+    try {
+      const { ok, data } = await apiFetch<{ message?: string }>("/employees/register", {
+        method: "POST",
+        auth: false,
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          phone,
+          nid,
+          presentAddress,
+          permanentAddress,
+        }),
+      });
+
+      if (!ok) {
+        toast.error(data?.message ?? "Registration failed.");
+        return;
+      }
+
+      toast.success(data?.message ?? "Registration successful. Please wait for HR approval.");
+      navigate("/");
+    } catch {
+      toast.error("Unable to reach server. Is the backend running?");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -127,8 +155,8 @@ const Register = () => {
             </div>
           </div>
 
-          <Button type="submit" className="w-full">
-            Register
+          <Button type="submit" className="w-full" disabled={submitting}>
+            {submitting ? "Registering…" : "Register"}
           </Button>
         </form>
       </div>
@@ -137,4 +165,3 @@ const Register = () => {
 };
 
 export default Register;
-

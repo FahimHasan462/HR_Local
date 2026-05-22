@@ -1,11 +1,16 @@
-import { useState } from "react";
-import { Employee, LeaveRecord, LeaveType } from "@/data/employees";
+import { useMemo, useState } from "react";
+import { Employee } from "@/context/AppContext";
 import { HrComplaint } from "@/data/hrComplaints";
+import { type LeaveRecord } from "@/types/employee";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { RoleBadge } from "./RoleBadge";
 import { Mail, Phone, Calendar, Briefcase, IdCard, MapPin, Home, User, Stethoscope, Plane, CalendarX, CalendarDays, MessageSquareWarning } from "lucide-react";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
+import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription} from "@/components/ui/dialog";
+
+
+type LeaveType = "sick" | "paid" | "unpaid";
+
+
 
 const leaveMeta: Record<LeaveType, { label: string; icon: typeof Stethoscope; chip: string }> = {
   sick: { label: "Sick", icon: Stethoscope, chip: "bg-secondary/15 text-secondary" },
@@ -38,7 +43,15 @@ const Stat = ({ label, used, total, tone }: { label: string; used: number; total
   );
 };
 
-const monthKey = (date: Date) => `${date.getFullYear()}-${date.getMonth()}`;
+const CURRENT_YEAR = new Date().getFullYear();
+/** py-2.5 button + text line */
+const LEAVE_ROW_HEIGHT_REM = 3;
+/** matches space-y-2 between list items */
+const LEAVE_ROW_GAP_REM = 0.5;
+const VISIBLE_LEAVE_ROWS = 6;
+
+const leavesListHeightRem = (rows: number) =>
+  rows * LEAVE_ROW_HEIGHT_REM + Math.max(0, rows - 1) * LEAVE_ROW_GAP_REM;
 
 export const EmployeeProfile = ({
   employee,
@@ -51,9 +64,20 @@ export const EmployeeProfile = ({
 }) => {
   const [openLeave, setOpenLeave] = useState<LeaveRecord | null>(null);
   const [openComplaint, setOpenComplaint] = useState<HrComplaint | null>(null);
-  const currentMonthUnpaidLeaves = employee.leaves.filter(
-    (leave) => leave.type === "unpaid" && monthKey(new Date(leave.date)) === monthKey(new Date()),
-  ).length;
+
+  const yearLeaves = useMemo(
+    () =>
+      employee.leaves
+        .filter((l) => new Date(l.date).getFullYear() === CURRENT_YEAR)
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    [employee.leaves],
+  );
+
+  const currentMonthUnpaidLeaves = employee.unpaidLeave ?? yearLeaves.filter((leave) => {
+    const d = new Date(leave.date);
+    const now = new Date();
+    return leave.type === "unpaid" && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-3xl bg-gradient-hero p-8 text-primary-foreground shadow-glow">
@@ -74,8 +98,7 @@ export const EmployeeProfile = ({
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-border bg-card p-6 shadow-soft lg:col-span-2">
           <h3 className="mb-4 text-lg font-bold">About</h3>
-          <p className="text-muted-foreground">{employee.bio}</p>
-
+    
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
               <User className="h-4 w-4 shrink-0 text-primary" />
@@ -137,34 +160,46 @@ export const EmployeeProfile = ({
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-bold">
-            <CalendarDays className="h-5 w-5 text-primary" /> Leaves Taken ({employee.leaves.length})
+          <h3 className="mb-1 flex items-center gap-2 text-lg font-bold">
+            <CalendarDays className="h-5 w-5 text-primary" /> Leaves Taken ({yearLeaves.length})
           </h3>
-          {employee.leaves.length === 0 ? (
+          <p className="mb-4 text-xs text-muted-foreground">
+            {CURRENT_YEAR} only · resets each January · showing latest first
+          </p>
+          {yearLeaves.length === 0 ? (
             <p className="rounded-xl bg-muted/50 px-4 py-6 text-center text-sm text-muted-foreground">
-              No leaves taken yet 🎉
+              No leaves taken yet this year 
             </p>
           ) : (
-            <ul className="space-y-2">
-              {employee.leaves.map((l) => {
-                const m = leaveMeta[l.type];
-                const Icon = m.icon;
-                return (
-                  <li key={l.id}>
-                    <button
-                      type="button"
-                      onClick={() => setOpenLeave(l)}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl bg-gradient-mesh px-4 py-2.5 text-left text-sm font-medium transition-bounce hover:-translate-y-0.5 hover:shadow-soft"
-                    >
-                      <span className="truncate">{formatDate(l.date)}</span>
-                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${m.chip}`}>
-                        <Icon className="h-3 w-3" /> {m.label}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+            <ScrollArea
+              className="w-full rounded-xl"
+              style={
+                yearLeaves.length > VISIBLE_LEAVE_ROWS
+                  ? { height: `${leavesListHeightRem(VISIBLE_LEAVE_ROWS)}rem` }
+                  : undefined
+              }
+            >
+              <ul className="space-y-2 pr-3">
+                {yearLeaves.map((l) => {
+                  const m = leaveMeta[l.type];
+                  const Icon = m.icon;
+                  return (
+                    <li key={l.id}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenLeave(l)}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl bg-gradient-mesh px-4 py-2.5 text-left text-sm font-medium transition-bounce hover:-translate-y-0.5 hover:shadow-soft"
+                      >
+                        <span className="truncate">{formatDate(l.date)}</span>
+                        <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${m.chip}`}>
+                          <Icon className="h-3 w-3" /> {m.label}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </ScrollArea>
           )}
         </div>
       </div>
@@ -178,7 +213,7 @@ export const EmployeeProfile = ({
         </div>
         <div className="h-full rounded-2xl border border-border bg-card p-5 shadow-soft lg:col-span-1">
           <p className="text-sm font-medium text-muted-foreground">Unpaid leave this month</p>
-          <p className="mt-3 text-2xl font-bold">{currentMonthUnpaidLeaves}</p>
+          <p className="mt-2 text-2xl font-bold">{currentMonthUnpaidLeaves}</p>
         </div>
       </div>
 

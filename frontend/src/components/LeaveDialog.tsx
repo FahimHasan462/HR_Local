@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Employee, LeaveType } from "@/data/employees";
-import { useApp } from "@/context/AppContext";
+import { useApp, type Employee } from "@/context/AppContext";
+import { type LeaveType } from "@/types/employee";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -42,12 +42,16 @@ export const LeaveDialog = ({ employee, type, open, onOpenChange }: Props) => {
   const meta = typeMeta[type];
   const Icon = meta.icon;
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!reason.trim()) {
       toast.error("Please add a reason for the leave.");
       return;
     }
-    applyLeave(employee.id, type, reason.trim(), date);
+    const ok = await applyLeave(employee.id, type, reason.trim(), date);
+    if (!ok) {
+      toast.error("Could not log leave. Please try again.");
+      return;
+    }
     toast.success(`${meta.label} logged for ${employee.name}`);
     onOpenChange(false);
   };

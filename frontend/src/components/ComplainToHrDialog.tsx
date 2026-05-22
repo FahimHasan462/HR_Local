@@ -34,7 +34,7 @@ export const ComplainToHrDialog = ({ open, onOpenChange }: Props) => {
     }
   }, [open]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!againstId) {
       toast.error("Choose who this complaint is about.");
       return;
@@ -47,7 +47,11 @@ export const ComplainToHrDialog = ({ open, onOpenChange }: Props) => {
       toast.error("Describe what happened so HR can help.");
       return;
     }
-    submitHrComplaint(againstId, subject.trim(), details.trim());
+    const ok = await submitHrComplaint(againstId, subject.trim(), details.trim());
+    if (!ok) {
+      toast.error("Could not submit complaint. Please try again.");
+      return;
+    }
     toast.success("Your complaint was sent to HR confidentially.");
     onOpenChange(false);
   };

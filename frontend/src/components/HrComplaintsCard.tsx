@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useApp } from "@/context/AppContext";
 import { HrComplaint } from "@/data/hrComplaints";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
@@ -13,8 +14,17 @@ const formatWhen = (iso: string) =>
     timeStyle: "short",
   });
 
+/** py-3 row with subject + metadata (two lines) */
+const COMPLAINT_ROW_HEIGHT_REM = 4;
+/** matches space-y-2 between list items */
+const COMPLAINT_ROW_GAP_REM = 0.5;
+const VISIBLE_COMPLAINT_ROWS = 6;
+
+const complaintsListHeightRem = (rows: number) =>
+  rows * COMPLAINT_ROW_HEIGHT_REM + Math.max(0, rows - 1) * COMPLAINT_ROW_GAP_REM;
+
 export const HrComplaintsCard = () => {
-  const { employees, hrComplaints, markHrComplaintNotificationRead } = useApp();
+  const { employees, hrComplaints, hrNotifications, markHrNotificationRead } = useApp();
   const [openComplaint, setOpenComplaint] = useState<HrComplaint | null>(null);
 
   const byId = useMemo(() => new Map(employees.map((e) => [e.id, e])), [employees]);
@@ -43,7 +53,15 @@ export const HrComplaintsCard = () => {
               No complaints filed yet.
             </p>
           ) : (
-            <ul className="space-y-2">
+            <ScrollArea
+              className="w-full rounded-xl"
+              style={
+                sorted.length > VISIBLE_COMPLAINT_ROWS
+                  ? { height: `${complaintsListHeightRem(VISIBLE_COMPLAINT_ROWS)}rem` }
+                  : undefined
+              }
+            >
+              <ul className="space-y-2 pr-3">
               {sorted.map((c) => {
                 const from = byId.get(c.complainantId);
                 const against = byId.get(c.againstEmployeeId);
@@ -52,7 +70,8 @@ export const HrComplaintsCard = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        markHrComplaintNotificationRead(c.id);
+                        const notification = hrNotifications.find((n) => n.complaintId === c.id);
+                        if (notification) markHrNotificationRead(notification.id);
                         setOpenComplaint(c);
                       }}
                       className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left text-sm transition-bounce hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-soft"
@@ -72,7 +91,8 @@ export const HrComplaintsCard = () => {
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+            </ScrollArea>
           )}
         </CardContent>
       </Card>

@@ -7,9 +7,20 @@ export type HrComplaint = {
   details: string;
 };
 
-export type HrComplaintNotification = {
+export type BonusStatus = "pending" | "provided";
+
+export type HrNotification = {
   id: string;
-  complaintId: string;
+  type: "complaint" | "bonus" | "registration";
+  complaintId?: string;
+  employeeId?: string;
+  subject?: string;
+  message?: string;
+  bonusYear?: number;
+  bonusStatus?: BonusStatus;
   createdAt: string;
   read: boolean;
 };
+
+/** @deprecated Use HrNotification */
+export type HrComplaintNotification = HrNotification;

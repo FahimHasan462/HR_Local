@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, ReactNode } from "react";
-import { Employee, Role, LeaveType, LeaveRecord } from "@/data/employees";
-import { HrComplaint, HrComplaintNotification } from "@/data/hrComplaints";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { BonusStatus, HrComplaint, HrNotification } from "@/data/hrComplaints";
+import { asRole, LeaveRecord, LeaveType, Role } from "@/types/employee";
+import { apiFetch, getAuthToken, setAuthToken } from "@/lib/api";
 
-type LoginResult = {success: boolean; message?: string;};
+type LoginResult = { success: boolean; message?: string };
 
 type Ctx = {
   currentUser: Employee | null;
@@ -10,35 +11,61 @@ type Ctx = {
   logout: () => void;
   employees: Employee[];
   hrComplaints: HrComplaint[];
-  hrComplaintNotifications: HrComplaintNotification[];
-  submitHrComplaint: (againstEmployeeId: string, subject: string, details: string) => void;
-  markAllHrComplaintNotificationsRead: () => void;
-  markHrComplaintNotificationRead: (complaintId: string) => void;
-  applyLeave: (id: string, type: LeaveType, reason: string, date?: string) => void;
+  hrNotifications: HrNotification[];
+  submitHrComplaint: (againstEmployeeId: string, subject: string, details: string) => Promise<boolean>;
+  markAllHrNotificationsRead: () => Promise<void>;
+  markHrNotificationRead: (notificationId: string) => Promise<void>;
+  updateBonusStatus: (notificationId: string, status: BonusStatus) => Promise<boolean>;
+  applyLeave: (id: string, type: LeaveType, reason: string, date?: string) => Promise<boolean>;
   addEmployee: (
     data: Omit<Employee, "id" | "sickLeave" | "paidLeave" | "sickLeaveTotal" | "paidLeaveTotal" | "avatar" | "bio" | "projects" | "leaves"> &
-      Partial<Pick<Employee, "avatar" | "bio" | "projects" | "leaves">>
-  ) => void;
-  removeEmployee: (id: string) => void;
+      Partial<Pick<Employee, "avatar" | "bio" | "projects" | "leaves">>,
+  ) => Promise<boolean>;
+  removeEmployee: (id: string) => Promise<boolean>;
+  updateEmployee: (id: string, data: Partial<Employee>) => Promise<boolean>;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
 
-const avatarFor = (role: Role) =>
+const avatarFor = (role: string) =>
   role === "artist" ? "🎨" : role === "management" ? "🎬" : role === "IT" ? "🖥️" : "💼";
 
-type Leave = {
+/** Raw employee shape from the API before normalization. */
+type EmployeeInput = {
   _id?: string;
   id?: string;
-  date?: string;
-  type?: "sick" | "casual" | "unpaid";
-  reason?: string;
+  name: string;
+  role?: string;
+  title?: string;
+  department?: string;
+  email?: string;
+  phone?: string;
+  joined?: string;
+  nid?: string;
+  presentAddress?: string;
+  permanentAddress?: string;
+  avatar?: string;
+  bio?: string;
+  projects?: string[];
+  sickLeave?: number;
+  paidLeave?: number;
+  unpaidLeave?: number;
+  sickLeaveTotal?: number;
+  paidLeaveTotal?: number;
+  casualLeaveTotal?: number;
+  leaves?: Array<{
+    _id?: string;
+    id?: string;
+    date?: string;
+    type?: string;
+    reason?: string;
+  }>;
 };
 
-type BackendEmployee = {
+export type Employee = {
   _id?: string;
   id?: string;
-  name?: string;
+  name: string;
   role?: Role;
   title?: string;
   department?: string;
@@ -53,30 +80,26 @@ type BackendEmployee = {
   projects?: string[];
   sickLeave?: number;
   paidLeave?: number;
-  casualLeave?: number;
   unpaidLeave?: number;
   sickLeaveTotal?: number;
   paidLeaveTotal?: number;
   casualLeaveTotal?: number;
-  leaves?: Leave[];
+  leaves: LeaveRecord[];
 };
 
-const toFrontendLeaveType = (type: Leave["type"]): LeaveType =>
-  type === "casual" ? "paid" : type === "unpaid" ? "unpaid" : "sick";
-
-const normalizeEmployee = (employee: BackendEmployee): Employee => {
-  const role = employee.role;
-  const id = employee._id;
-  const leaves = (employee.leaves ?? []).map((leave, index) => ({
-    id: leave._id ?? leave.id ?? `l${index}`,
+const normalizeEmployee = (employee: EmployeeInput): Employee => {
+  const leaves: LeaveRecord[] = (employee.leaves ?? []).map((leave) => ({
+    id: leave._id ?? leave.id ?? "",
     date: leave.date ?? new Date().toISOString().slice(0, 10),
-    type: toFrontendLeaveType(leave.type),
+    type: (leave.type === "casual" ? "paid" : leave.type ?? "sick") as LeaveType,
     reason: leave.reason ?? "",
   }));
 
+  const role = asRole(employee.role);
+
   return {
-    id,
-    name: employee.name ?? "Unknown",
+    id: employee._id ?? employee.id,
+    name: employee.name,
     role,
     title: employee.title ?? "Employee",
     department: employee.department ?? role.toUpperCase(),
@@ -90,19 +113,121 @@ const normalizeEmployee = (employee: BackendEmployee): Employee => {
     bio: employee.bio ?? "Team member",
     projects: employee.projects ?? [],
     sickLeave: employee.sickLeave ?? 0,
-    paidLeave: employee.paidLeave ?? employee.casualLeave ?? 0,
+    paidLeave: employee.paidLeave ?? 0,
     sickLeaveTotal: employee.sickLeaveTotal ?? 12,
-    paidLeaveTotal: employee.paidLeaveTotal ?? employee.casualLeaveTotal ?? 20,
+    paidLeaveTotal: employee.paidLeaveTotal ?? 12,
     leaves,
   };
 };
 
+const normalizeComplaint = (c: {
+  _id?: string;
+  id?: string;
+  filedAt: string;
+  complainantId: string;
+  againstEmployeeId: string;
+  subject: string;
+  details: string;
+}): HrComplaint => ({
+  id: c._id ?? c.id ?? "",
+  filedAt: c.filedAt,
+  complainantId: String(c.complainantId),
+  againstEmployeeId: String(c.againstEmployeeId),
+  subject: c.subject,
+  details: c.details,
+});
+
+const normalizeNotification = (n: {
+  _id?: string;
+  id?: string;
+  type?: string;
+  complaintId?: string;
+  employeeId?: string;
+  subject?: string;
+  message?: string;
+  bonusYear?: number;
+  bonusStatus?: string;
+  createdAt: string;
+  read: boolean;
+}): HrNotification => ({
+  id: n._id ?? n.id ?? "",
+  type: (n.type === "bonus" ? "bonus" : n.type === "registration" ? "registration" : "complaint") as HrNotification["type"],
+  complaintId: n.complaintId ? String(n.complaintId) : undefined,
+  employeeId: n.employeeId ? String(n.employeeId) : undefined,
+  subject: n.subject,
+  message: n.message,
+  bonusYear: n.bonusYear,
+  bonusStatus:
+    n.bonusStatus === "provided" ? "provided" : n.type === "bonus" ? "pending" : undefined,
+  createdAt: n.createdAt,
+  read: n.read,
+});
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [list, setList] = useState<Employee[]>([]);
   const [hrComplaints, setHrComplaints] = useState<HrComplaint[]>([]);
-  const [hrComplaintNotifications, setHrComplaintNotifications] = useState<HrComplaintNotification[]>([]);
+  const [hrNotifications, setHrNotifications] = useState<HrNotification[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(!!getAuthToken());
   const currentUser = list.find((e) => e.id === currentUserId) ?? null;
+
+  const bootstrapSession = async (employee: Employee) => {
+    const normalized = normalizeEmployee(employee);
+    setCurrentUserId(normalized.id ?? null);
+    setList((prev) => {
+      const without = prev.filter((e) => e.id !== normalized.id);
+      return [normalized, ...without];
+    });
+    await loadEmployees();
+    if (normalized.role === "hr") {
+      await loadHrData();
+    }
+  };
+
+  useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      setSessionLoading(false);
+      return;
+    }
+
+    (async () => {
+      const { ok, data } = await apiFetch<{ employee?: Employee }>("/employees/me");
+      if (ok && data?.employee) {
+        await bootstrapSession(data.employee);
+      } else {
+        setAuthToken(null);
+      }
+      setSessionLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadEmployees = async () => {
+    const { ok, data } = await apiFetch<EmployeeInput[]>("/employees/all-employees-info");
+    if (ok && Array.isArray(data)) {
+      const normalized = data.map((e) => normalizeEmployee(e));
+      setList(normalized);
+      const me = normalized.find((e) => e.id === currentUserId);
+      if (me?.role === "hr") {
+        await loadHrData();
+      }
+    }
+  };
+
+  const loadHrData = async () => {
+    const [complaintsRes, notificationsRes] = await Promise.all([
+      apiFetch<Array<Parameters<typeof normalizeComplaint>[0]>>("/complaints"),
+      apiFetch<Array<Parameters<typeof normalizeNotification>[0]>>("/notifications"),
+    ]);
+
+    if (complaintsRes.ok && Array.isArray(complaintsRes.data)) {
+      setHrComplaints(complaintsRes.data.map(normalizeComplaint));
+    }
+    if (notificationsRes.ok && Array.isArray(notificationsRes.data)) {
+      setHrNotifications(notificationsRes.data.map(normalizeNotification));
+    }
+  };
 
   const login = async (email: string, password: string): Promise<LoginResult> => {
     if (!email.trim() || !password.trim()) {
@@ -110,107 +235,178 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/employees/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
+      const { ok, data } = await apiFetch<{ message?: string; token?: string; employee?: Employee }>(
+        "/employees/login",
+        {
+          method: "POST",
+          auth: false,
+          body: JSON.stringify({ email, password }),
+        },
+      );
 
-      if (!response.ok) {
-        return { success: false, message: data?.message ?? "Login failed." };
+      if (!ok || !data?.employee || !data?.token) {
+        const err = data as { message?: string; error?: string };
+        return { success: false, message: err?.message ?? err?.error ?? "Login failed." };
       }
 
-      if (!data?.employee) {
-        return { success: false, message: "No employee returned from server." };
-      }
-
-      const normalizedEmployee = normalizeEmployee(data.employee as BackendEmployee);
-      setList((prev) => {
-        const withoutCurrent = prev.filter((employee) => employee.id !== normalizedEmployee.id);
-        return [normalizedEmployee, ...withoutCurrent];
-      });
-      setCurrentUserId(normalizedEmployee.id);
+      setAuthToken(data.token);
+      await bootstrapSession(data.employee);
       return { success: true };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to reach server.";
+      const raw = error instanceof Error ? error.message : "Unable to reach server.";
+      const message =
+        raw === "Failed to fetch"
+          ? "Cannot reach the API. Start the backend (npm run dev from the project root) and try again."
+          : raw;
       return { success: false, message };
     }
   };
-  const logout = () => setCurrentUserId(null);
 
-  const applyLeave = (id: string, type: LeaveType, reason: string, date?: string) => {
-    const recordDate = date || new Date().toISOString().slice(0, 10);
-    setList((prev) =>
-      prev.map((e) => {
-        if (e.id !== id) return e;
-        const record: LeaveRecord = {
-          id: `l${Date.now()}`,
-          date: recordDate,
-          type,
-          reason,
-        };
-        const next: Employee = { ...e, leaves: [record, ...e.leaves] };
-        if (type === "sick" && e.sickLeave < e.sickLeaveTotal) next.sickLeave = e.sickLeave + 1;
-        if (type === "paid" && e.paidLeave < e.paidLeaveTotal) next.paidLeave = e.paidLeave + 1;
-        return next;
-      })
+  const logout = () => {
+    setAuthToken(null);
+    setCurrentUserId(null);
+    setList([]);
+    setHrComplaints([]);
+    setHrNotifications([]);
+  };
+
+  const applyLeave = async (id: string, type: LeaveType, reason: string, date?: string): Promise<boolean> => {
+    try {
+      const { ok, data } = await apiFetch<{ message?: string; employee?: Employee }>(
+        `/employees/${id}/leave`,
+        {
+          method: "POST",
+          body: JSON.stringify({ type, reason, date }),
+        },
+      );
+
+      if (!ok || !data?.employee) {
+        return false;
+      }
+
+      const updated = normalizeEmployee(data.employee);
+      setList((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const addEmployee: Ctx["addEmployee"] = async (data) => {
+    try {
+      const { ok, data: res } = await apiFetch<{ message?: string; employee?: Employee }>("/employees", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+
+      if (!ok || !res?.employee) {
+        return false;
+      }
+
+      const created = normalizeEmployee(res.employee);
+      setList((prev) => [created, ...prev.filter((e) => e.id !== created.id)]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const removeEmployee = async (id: string): Promise<boolean> => {
+    try {
+      const { ok } = await apiFetch(`/employees/${id}`, { method: "DELETE" });
+      if (!ok) return false;
+      setList((prev) => prev.filter((e) => e.id !== id));
+      if (currentUserId === id) setCurrentUserId(null);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const submitHrComplaint: Ctx["submitHrComplaint"] = async (againstEmployeeId, subject, details) => {
+    if (!currentUser?.id) return false;
+
+    try {
+      const { ok, data } = await apiFetch<{
+        complaint?: Parameters<typeof normalizeComplaint>[0];
+        notification?: Parameters<typeof normalizeNotification>[0];
+      }>("/complaints", {
+        method: "POST",
+        body: JSON.stringify({
+          complainantId: currentUser.id,
+          againstEmployeeId,
+          subject,
+          details,
+        }),
+      });
+
+      if (!ok) return false;
+
+      // Complaints & notifications are HR-only; complainant does not receive a notification
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const updateEmployee = async (id: string, data: Partial<Employee>): Promise<boolean> => {
+    try {
+      const { ok, data: res } = await apiFetch<{ message?: string; employee?: Employee }>(
+        `/employees/${id}`,
+        { method: "PUT", body: JSON.stringify(data) },
+      );
+      if (!ok || !res?.employee) return false;
+      const updated = normalizeEmployee(res.employee);
+      setList((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const markAllHrNotificationsRead = async () => {
+    await apiFetch("/notifications/mark-all-read", { method: "PATCH" });
+    setHrNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const markHrNotificationRead = async (notificationId: string) => {
+    await apiFetch(`/notifications/mark-read/${notificationId}`, { method: "PATCH" });
+    setHrNotifications((prev) =>
+      prev.map((n) => (n.id === notificationId ? { ...n, read: true } : n)),
     );
   };
 
-  const addEmployee: Ctx["addEmployee"] = (data) => {
-    const newEmp: Employee = {
-      id: `e${Date.now()}`,
-      avatar: data.avatar || avatarFor(data.role),
-      bio: data.bio || "Newest member of the crew ✨",
-      projects: data.projects || [],
-      leaves: data.leaves || [],
-      sickLeave: 0,
-      paidLeave: 0,
-      sickLeaveTotal: data.role === "artist" ? 12 : 15,
-      paidLeaveTotal: data.role === "artist" ? 20 : 25,
-      ...data,
-    };
-    setList((prev) => [newEmp, ...prev]);
+  const updateBonusStatus = async (
+    notificationId: string,
+    status: BonusStatus,
+  ): Promise<boolean> => {
+    try {
+      const { ok, data } = await apiFetch<{
+        notification?: Parameters<typeof normalizeNotification>[0];
+      }>(`/notifications/${notificationId}/bonus-status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+
+      if (!ok || !data?.notification) return false;
+
+      const updated = normalizeNotification(data.notification);
+      setHrNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? updated : n)),
+      );
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  const removeEmployee = (id: string) => {
-    setList((prev) => prev.filter((e) => e.id !== id));
-  };
-
-  const submitHrComplaint: Ctx["submitHrComplaint"] = (againstEmployeeId, subject, details) => {
-    if (!currentUser) return;
-    const now = new Date().toISOString();
-    const complaintId = `hc${Date.now()}`;
-    const complaint: HrComplaint = {
-      id: complaintId,
-      filedAt: now,
-      complainantId: currentUser.id,
-      againstEmployeeId,
-      subject: subject.trim(),
-      details: details.trim(),
-    };
-    setHrComplaints((prev) => [complaint, ...prev]);
-    setHrComplaintNotifications((prev) => [
-      {
-        id: `hn${Date.now()}`,
-        complaintId,
-        createdAt: now,
-        read: false,
-      },
-      ...prev,
-    ]);
-  };
-
-  const markAllHrComplaintNotificationsRead = () => {
-    setHrComplaintNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const markHrComplaintNotificationRead = (complaintId: string) => {
-    setHrComplaintNotifications((prev) =>
-      prev.map((n) => (n.complaintId === complaintId ? { ...n, read: true } : n)),
+  if (sessionLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        Restoring session…
+      </div>
     );
-  };
+  }
 
   return (
     <AppCtx.Provider
@@ -220,13 +416,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         logout,
         employees: list,
         hrComplaints,
-        hrComplaintNotifications,
+        hrNotifications,
         submitHrComplaint,
-        markAllHrComplaintNotificationsRead,
-        markHrComplaintNotificationRead,
+        markAllHrNotificationsRead,
+        markHrNotificationRead,
+        updateBonusStatus,
         applyLeave,
         addEmployee,
         removeEmployee,
+        updateEmployee,
       }}
     >
       {children}

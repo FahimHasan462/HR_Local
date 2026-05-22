@@ -1,11 +1,14 @@
-import { useState } from "react";
-import { Employee, LeaveType } from "@/data/employees";
-import { useApp } from "@/context/AppContext";
+import { useEffect, useState } from "react";
+import { useApp, type Employee } from "@/context/AppContext";
+import { type LeaveType } from "@/types/employee";
 import { RoleBadge } from "./RoleBadge";
 import { EmployeeProfile } from "./EmployeeProfile";
 import { AddEmployeeDialog } from "./AddEmployeeDialog";
+import { EditEmployeeDialog } from "./EditEmployeeDialog";
 import { LeaveDialog } from "./LeaveDialog";
 import { HrComplaintsCard } from "./HrComplaintsCard";
+import { HrLeavesThisMonthCard } from "./HrLeavesThisMonthCard";
+import { LinkboardNavButton } from "./LinkboardNavButton";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -14,7 +17,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ArrowLeft, ChevronRight, Plane, Stethoscope, CalendarPlus, CalendarX, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plane, Stethoscope, CalendarPlus, CalendarX, Search, Trash2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
@@ -26,9 +29,20 @@ export const EmployeeList = ({
   const [selected, setSelected] = useState<Employee | null>(null);
   const [query, setQuery] = useState("");
   const [leaveTarget, setLeaveTarget] = useState<{ emp: Employee; type: LeaveType } | null>(null);
+  const [editTarget, setEditTarget] = useState<Employee | null>(null);
 
-  const handleRemove = (emp: Employee) => {
-    removeEmployee(emp.id);
+  useEffect(() => {
+    if (!selected) return;
+    const fresh = employees.find((e) => e.id === selected.id);
+    if (fresh) setSelected(fresh);
+  }, [employees, selected?.id]);
+
+  const handleRemove = async (emp: Employee) => {
+    const ok = await removeEmployee(emp.id);
+    if (!ok) {
+      toast.error(`Could not remove ${emp.name}. Please try again.`);
+      return;
+    }
     toast.success(`${emp.name} removed from the roster`);
   };
 
@@ -78,7 +92,12 @@ export const EmployeeList = ({
               className="pl-9"
             />
           </div>
-          {canManageRoster && <AddEmployeeDialog />}
+          {canManageRoster && (
+            <div className="flex flex-wrap gap-2">
+              <AddEmployeeDialog />
+              <LinkboardNavButton />
+            </div>
+          )}
         </div>
       </div>
 
@@ -145,6 +164,18 @@ export const EmployeeList = ({
                 </DropdownMenu>
               )}
 
+              {currentUser?.role === "hr" && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="text-primary hover:bg-primary/10 hover:text-primary"
+                  aria-label={`Edit ${emp.name}`}
+                  onClick={() => setEditTarget(emp)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+
               {canManageRoster && currentUser?.id !== emp.id && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -187,13 +218,24 @@ export const EmployeeList = ({
         </div>
       )}
 
-      {currentUser?.role === "hr" && <HrComplaintsCard />}
+      {currentUser?.role === "hr" && (
+        <>
+          <HrLeavesThisMonthCard />
+          <HrComplaintsCard />
+        </>
+      )}
 
       <LeaveDialog
         employee={leaveTarget?.emp ?? null}
         type={leaveTarget?.type ?? null}
         open={!!leaveTarget}
         onOpenChange={(o) => !o && setLeaveTarget(null)}
+      />
+
+      <EditEmployeeDialog
+        employee={editTarget}
+        open={!!editTarget}
+        onOpenChange={(o) => !o && setEditTarget(null)}
       />
     </div>
   );

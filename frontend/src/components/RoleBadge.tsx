@@ -1,4 +1,4 @@
-import { Role, roleMeta } from "@/data/employees";
+import { asRole, roleMeta, type Role } from "@/types/employee";
 import { cn } from "@/lib/utils";
 
 const styles: Record<Role, string> = {
@@ -8,15 +8,18 @@ const styles: Record<Role, string> = {
   IT: "bg-gradient-info text-info-foreground",
 };
 
-export const RoleBadge = ({ role, className }: { role: Role; className?: string }) => (
-  <span
-    className={cn(
-      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-soft",
-      styles[role],
-      className
-    )}
-  >
-    <span>{roleMeta[role].emoji}</span>
-    {roleMeta[role].label}
-  </span>
-);
+export const RoleBadge = ({ role, className }: { role?: Role | string; className?: string }) => {
+  const r = asRole(role);
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-soft",
+        styles[r],
+        className
+      )}
+    >
+      <span>{roleMeta[r].emoji}</span>
+      {roleMeta[r].label}
+    </span>
+  );
+};
