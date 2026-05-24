@@ -6,7 +6,7 @@ require("dotenv").config();
 const app = express();
 
 const defaultOrigins = [
-  "http://localhost:8080",
+  "https://hr-local.vercel.app",
   "http://127.0.0.1:8080",
 ];
 const extraOrigins = (process.env.CORS_ORIGINS ?? "")
