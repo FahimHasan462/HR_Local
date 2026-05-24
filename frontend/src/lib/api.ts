@@ -1,6 +1,5 @@
 /** In dev, use Vite proxy (`/api` → backend). Override with VITE_API_URL if needed. */
-export const API_BASE =
-  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "/api" : "http://localhost:5000/api");
+export const API_BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "/api" : "");
 
 const TOKEN_KEY = "hr_auth_token";
 
@@ -20,6 +19,10 @@ export async function apiFetch<T = unknown>(
   path: string,
   options: RequestInit & { auth?: boolean } = {},
 ): Promise<{ ok: boolean; status: number; data: T }> {
+  if (!API_BASE) {
+    throw new Error("Missing VITE_API_URL. Set it in frontend/.env (e.g. VITE_API_URL=/api).");
+  }
+
   const { auth = true, ...fetchOptions } = options;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
