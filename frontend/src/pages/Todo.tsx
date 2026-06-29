@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useApp } from "@/context/AppContext";
 import { AppHeader } from "@/components/AppHeader";
@@ -6,6 +6,13 @@ import { LinkboardNavButton } from "@/components/LinkboardNavButton";
 import { CutStatusBadge } from "@/components/CutStatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -16,8 +23,21 @@ import {
 } from "@/components/ui/table";
 import { apiFetch } from "@/lib/api";
 import type { TodoCut, TodoGrouped } from "@/types/todo";
-import { CheckSquare, ExternalLink, FolderOpen, Loader2, Search, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertTriangle,
+  CheckSquare,
+  ExternalLink,
+  FolderOpen,
+  Loader2,
+  RefreshCw,
+  Search,
+  WifiOff,
+  X,
+} from "lucide-react";
 import ManagementTodoDashboard from "@/pages/ManagementTodoDashboard";
+
+const POLL_INTERVAL_MS = 30_000;
 
 const EPISODE_VISIBLE_ROWS = 10;
 const EPISODE_ROW_HEIGHT_PX = 49;
@@ -33,13 +53,17 @@ const filterGrouped = (
   cuts: TodoGrouped,
   query: string,
   statusFilter: string | null,
+  projectFilter: string | null,
+  episodeFilter: string | null,
 ): TodoGrouped => {
   const normalizedQuery = query.trim().toLowerCase();
   const normalizedStatus = statusFilter ? normalizeStatus(statusFilter) : null;
   const result: TodoGrouped = {};
 
   for (const [project, episodes] of Object.entries(cuts)) {
+    if (projectFilter && project !== projectFilter) continue;
     for (const [episode, rows] of Object.entries(episodes)) {
+      if (episodeFilter && episode !== episodeFilter) continue;
       const matched = rows.filter((row) => {
         const matchesQuery =
           !normalizedQuery ||
@@ -83,46 +107,165 @@ const countByStatus = (cuts: TodoGrouped) => {
 
 const countCuts = (cuts: TodoGrouped) =>
   Object.values(cuts).reduce(
-    (sum, episodes) => sum + Object.values(episodes).reduce((epSum, rows) => epSum + rows.length, 0),
+    (sum, episodes) =>
+      sum + Object.values(episodes).reduce((epSum, rows) => epSum + rows.length, 0),
     0,
   );
 
+const detectChanges = (prev: TodoGrouped, next: TodoGrouped): number => {
+  let changed = 0;
+  for (const [project, episodes] of Object.entries(next)) {
+    for (const [episode, rows] of Object.entries(episodes)) {
+      const prevRows = prev[project]?.[episode] ?? [];
+      for (const row of rows) {
+        const prevRow = prevRows.find((r) => r.cut === row.cut);
+        if (prevRow && prevRow.status !== row.status) changed++;
+      }
+    }
+  }
+  return changed;
+};
+
+const formatRelativeTime = (date: Date) => {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 10) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+};
+
 const Todo = () => {
   const { currentUser } = useApp();
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [episodeFilter, setEpisodeFilter] = useState<string | null>(null);
   const [cuts, setCuts] = useState<TodoGrouped>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [relativeTime, setRelativeTime] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const cutsRef = useRef<TodoGrouped>({});
+  const loadAbortRef = useRef<AbortController | null>(null);
+  const refreshingRef = useRef(false);
+
+  const load = useCallback(
+    async (isInitial = false) => {
+      // Cancel any in-flight request
+      if (loadAbortRef.current) {
+        loadAbortRef.current.abort();
+      }
+      const controller = new AbortController();
+      loadAbortRef.current = controller;
+
+      if (isInitial) {
+        setLoading(true);
+        setError(null);
+      }
+
+      try {
+        const { ok, data } = await apiFetch<TodoGrouped>("/todo", { signal: controller.signal });
+
+        // If request was cancelled, don't update state
+        if (controller.signal.aborted) return;
+
+        if (ok) {
+          const validData = (data && typeof data === 'object') ? data : {};
+          const changed = isInitial ? 0 : detectChanges(cutsRef.current, validData);
+          cutsRef.current = validData;
+          setCuts(validData);
+          setOffline(false);
+          setLastUpdated(new Date());
+          if (changed > 0) {
+            toast({
+              title: "Cuts updated",
+              description: `${changed} cut${changed === 1 ? "" : "s"} changed status.`,
+            });
+          }
+        } else {
+          if (isInitial) {
+            setError("Could not load your cuts. Please try again.");
+            setCuts({});
+            cutsRef.current = {};
+          } else {
+            setOffline(true);
+          }
+        }
+      } catch (err) {
+        if (!controller.signal.aborted && isInitial) {
+          setError("Could not load your cuts. Please try again.");
+          setCuts({});
+          cutsRef.current = {};
+        }
+      } finally {
+        if (isInitial) setLoading(false);
+      }
+    },
+    [toast],
+  );
+
+  // Keep ref in sync with refreshing state
+  useEffect(() => {
+    refreshingRef.current = refreshing;
+  }, [refreshing]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      setLoading(true);
-      setError(null);
-      const { ok, data } = await apiFetch<TodoGrouped>("/todo");
-      if (cancelled) return;
-
-      if (!ok) {
-        setError("Could not load your cuts. Please try again.");
-        setCuts({});
-      } else {
-        setCuts(data ?? {});
+    load(true);
+    const interval = setInterval(() => {
+      // Don't poll while manually refreshing
+      if (!refreshingRef.current) {
+        load(false);
       }
-      setLoading(false);
-    })();
-
+    }, POLL_INTERVAL_MS);
     return () => {
-      cancelled = true;
+      clearInterval(interval);
+      if (loadAbortRef.current) {
+        loadAbortRef.current.abort();
+      }
     };
-  }, [currentUser?.sheetName]);
+  }, [currentUser?.sheetName, load]);
 
-  const searchFiltered = useMemo(() => filterGrouped(cuts, search, null), [cuts, search]);
+  useEffect(() => {
+    if (!lastUpdated) return;
+    setRelativeTime(formatRelativeTime(lastUpdated));
+    const interval = setInterval(() => {
+      setRelativeTime(formatRelativeTime(lastUpdated));
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [lastUpdated]);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await load(false);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const allProjectNames = useMemo(() => Object.keys(cuts).sort(), [cuts]);
+
+  const allEpisodeNames = useMemo(() => {
+    const eps = new Set<string>();
+    const source = projectFilter ? { [projectFilter]: cuts[projectFilter] ?? {} } : cuts;
+    for (const episodes of Object.values(source)) {
+      for (const ep of Object.keys(episodes)) eps.add(ep);
+    }
+    return [...eps].sort();
+  }, [cuts, projectFilter]);
+
+  const searchFiltered = useMemo(
+    () => filterGrouped(cuts, search, null, projectFilter, episodeFilter),
+    [cuts, search, projectFilter, episodeFilter],
+  );
 
   const filtered = useMemo(
-    () => filterGrouped(cuts, search, statusFilter),
-    [cuts, search, statusFilter],
+    () => filterGrouped(cuts, search, statusFilter, projectFilter, episodeFilter),
+    [cuts, search, statusFilter, projectFilter, episodeFilter],
   );
 
   const statusSummary = useMemo(() => countByStatus(searchFiltered), [searchFiltered]);
@@ -135,6 +278,15 @@ const Todo = () => {
     setStatusFilter((current) => (current === key ? null : key));
   };
 
+  const hasFilters = !!(search.trim() || statusFilter || projectFilter || episodeFilter);
+
+  const clearAllFilters = () => {
+    setSearch("");
+    setStatusFilter(null);
+    setProjectFilter(null);
+    setEpisodeFilter(null);
+  };
+
   if (!currentUser) return <Navigate to="/" replace />;
   if (currentUser.role === "hr") return <Navigate to="/" replace />;
   if (currentUser.role === "management") return <ManagementTodoDashboard />;
@@ -144,6 +296,8 @@ const Todo = () => {
       <AppHeader />
       <main className="container py-8">
         <div className="mx-auto max-w-5xl">
+
+          {/* Header */}
           <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="flex items-center gap-2 text-3xl font-bold">
@@ -154,22 +308,100 @@ const Todo = () => {
                 Your assigned cuts from project spreadsheets.
               </p>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {lastUpdated && (
+                <span className="text-xs text-muted-foreground">Updated {relativeTime}</span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={handleManualRefresh}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
               <LinkboardNavButton />
             </div>
           </div>
 
-          <div className="relative mb-6">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by cut or status…"
-              aria-label="Search cuts"
-              className="pl-9"
-            />
+          {/* Offline banner */}
+          {offline && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400">
+              <WifiOff className="h-4 w-4 shrink-0" />
+              Connection lost — showing last known data. Retrying…
+            </div>
+          )}
+
+          {/* Search + Dropdowns */}
+          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by cut or status…"
+                aria-label="Search cuts"
+                className="pl-9"
+              />
+            </div>
+
+            {!loading && allProjectNames.length > 0 && (
+              <Select
+                value={projectFilter ?? "all"}
+                onValueChange={(v) => {
+                  setProjectFilter(v === "all" ? null : v);
+                  setEpisodeFilter(null);
+                }}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All projects</SelectItem>
+                  {allProjectNames.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {!loading && allEpisodeNames.length > 1 && (
+              <Select
+                value={episodeFilter ?? "all"}
+                onValueChange={(v) => setEpisodeFilter(v === "all" ? null : v)}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All episodes" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All episodes</SelectItem>
+                  {allEpisodeNames.map((ep) => (
+                    <SelectItem key={ep} value={ep}>
+                      {ep}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-muted-foreground"
+                onClick={clearAllFilters}
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </Button>
+            )}
           </div>
 
+          {/* Status summary table */}
           {!loading && !error && totalBeforeStatusFilter > 0 && (
             <div className="mb-6 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
               <Table>
@@ -226,18 +458,23 @@ const Todo = () => {
             </div>
           )}
 
+          {/* Main content */}
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
               <Loader2 className="h-5 w-5 animate-spin" />
               Loading your cuts…
             </div>
           ) : error ? (
-            <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-8 text-center text-destructive">
+            <div className="flex flex-col items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-8 text-center text-destructive">
+              <AlertTriangle className="h-6 w-6" />
               {error}
+              <Button variant="outline" size="sm" onClick={() => load(true)}>
+                Try again
+              </Button>
             </div>
           ) : totalCuts === 0 ? (
             <div className="rounded-2xl border border-border bg-card px-4 py-16 text-center text-muted-foreground shadow-soft">
-              {search.trim() || statusFilter
+              {hasFilters
                 ? "No cuts match your filters."
                 : "No cuts assigned yet. Check that your sheet name matches the Artist column exactly."}
             </div>
@@ -253,7 +490,6 @@ const Todo = () => {
                     </h2>
                     {episodes.map((episode) => {
                       const rows = filtered[project][episode];
-
                       return (
                         <div
                           key={`${project}-${episode}`}

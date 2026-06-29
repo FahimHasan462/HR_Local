@@ -23,7 +23,6 @@ type Ctx = {
   ) => Promise<boolean>;
   removeEmployee: (id: string) => Promise<boolean>;
   updateEmployee: (id: string, data: Partial<Employee>) => Promise<boolean>;
-  updateSheetName: (sheetName: string) => Promise<boolean>;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -368,23 +367,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateSheetName = async (sheetName: string): Promise<boolean> => {
-    if (!currentUser?.id) return false;
-
-    try {
-      const { ok, data } = await apiFetch<{ employee?: EmployeeInput }>(
-        "/employees/me/sheet-name",
-        { method: "PATCH", body: JSON.stringify({ sheetName }) },
-      );
-      if (!ok || !data?.employee) return false;
-      const updated = normalizeEmployee(data.employee);
-      setList((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const markAllHrNotificationsRead = async () => {
     await apiFetch("/notifications/mark-all-read", { method: "PATCH" });
     setHrNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -446,7 +428,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addEmployee,
         removeEmployee,
         updateEmployee,
-        updateSheetName,
       }}
     >
       {children}

@@ -4,7 +4,6 @@ import { useApp } from "@/context/AppContext";
 import { AppHeader } from "@/components/AppHeader";
 import { EmployeeProfile } from "@/components/EmployeeProfile";
 import { ComplainToHrDialog } from "@/components/ComplainToHrDialog";
-import { SheetNameSettings } from "@/components/SheetNameSettings";
 import { LinkboardNavButton } from "@/components/LinkboardNavButton";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, MessageSquareWarning } from "lucide-react";
@@ -47,9 +46,6 @@ const Profile = () => {
                 Complain to HR
               </Button>
             </div>
-          </div>
-          <div className="mb-6 space-y-6">
-            <SheetNameSettings />
           </div>
           <EmployeeProfile employee={currentUser} showLeaveHistory />
           <ComplainToHrDialog open={complainOpen} onOpenChange={setComplainOpen} />
