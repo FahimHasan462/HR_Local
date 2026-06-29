@@ -61,10 +61,6 @@ router.get("/overview", managementOnly, async (req, res) => {
     const configs = dbConfigs.length > 0 ? dbConfigs : SHEET_CONFIG_SEED;
     const projects = {};
 
-    for (const config of configs) {
-      if (!projects[config.project]) projects[config.project] = {};
-    }
-
     await Promise.all(
       configs.map(async (config) => {
         try {
@@ -88,6 +84,10 @@ router.get("/overview", managementOnly, async (req, res) => {
           }
 
           artists.sort((a, b) => a.name.localeCompare(b.name));
+
+          if (!projects[config.project]) {
+            projects[config.project] = {};
+          }
 
           projects[config.project][config.episode] = {
             statuses: mergeStatusColumns(artists.map((artist) => artist.statuses)),
@@ -124,15 +124,22 @@ router.get("/", async (req, res) => {
     const configs = dbConfigs.length > 0 ? dbConfigs : SHEET_CONFIG_SEED;
     const grouped = {};
 
-    for (const config of configs) {
-      if (!grouped[config.project]) grouped[config.project] = {};
-    }
-
     await Promise.all(
       configs.map(async (config) => {
-        const cuts = await fetchCutsForArtist(config.sheetUrl, sheetName);
-        if (cuts.length === 0) return;
-        grouped[config.project][config.episode] = cuts;
+        try {
+          const cuts = await fetchCutsForArtist(config.sheetUrl, sheetName);
+          if (cuts.length === 0) return;
+
+          if (!grouped[config.project]) {
+            grouped[config.project] = {};
+          }
+          grouped[config.project][config.episode] = cuts;
+        } catch (error) {
+          console.error(
+            `Failed to load sheet for ${config.project} ${config.episode}:`,
+            error.message,
+          );
+        }
       }),
     );
 
