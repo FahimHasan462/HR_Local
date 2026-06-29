@@ -125,22 +125,12 @@ router.get("/", async (req, res) => {
     const grouped = {};
 
     await Promise.all(
-      configs.map(async (config) => {
-        try {
-          const cuts = await fetchCutsForArtist(config.sheetUrl, sheetName);
-          if (cuts.length === 0) return;
-
-          if (!grouped[config.project]) {
-            grouped[config.project] = {};
-          }
-          grouped[config.project][config.episode] = cuts;
-        } catch (error) {
-          console.error(
-            `Failed to load sheet for ${config.project} ${config.episode}:`,
-            error.message,
-          );
-        }
-      }),
+     configs.map(async (config) => {
+  const cuts = await fetchCutsForArtist(config.sheetUrl, sheetName);
+  if (cuts.length === 0) return;
+  if (!grouped[config.project]) grouped[config.project] = {};
+  grouped[config.project][config.episode] = cuts;
+}),
     );
 
     res.json(grouped);

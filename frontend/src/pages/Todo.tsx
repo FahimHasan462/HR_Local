@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import ManagementTodoDashboard from "@/pages/ManagementTodoDashboard";
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 120_000;
 
 const EPISODE_VISIBLE_ROWS = 10;
 const EPISODE_ROW_HEIGHT_PX = 49;
@@ -238,14 +238,15 @@ const Todo = () => {
     return () => clearInterval(interval);
   }, [lastUpdated]);
 
-  const handleManualRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await load(false);
-    } finally {
-      setRefreshing(false);
-    }
-  };
+ const handleManualRefresh = async () => {
+  setRefreshing(true);
+  setError(null);
+  try {
+    await load(true);
+  } finally {
+    setRefreshing(false);
+  }
+};
 
   const allProjectNames = useMemo(() => Object.keys(cuts).sort(), [cuts]);
 
