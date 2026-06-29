@@ -37,7 +37,7 @@ export const AppHeader = () => {
             <p className="text-sm font-semibold">{currentUser.name}</p>
             <p className="text-xs text-muted-foreground">{currentUser.title}</p>
           </div>
-          <RoleBadge role={currentUser.role} />
+          <RoleBadge role={currentUser.role} profileHref="/profile" />
           <ThemeToggle />
           {currentUser.role === "hr" && <HrNotificationBell />}
           <Button variant="ghost" size="sm" onClick={signOut} className="gap-1.5">

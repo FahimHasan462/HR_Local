@@ -210,6 +210,27 @@ router.get("/me", async (req, res) => {
   }
 });
 
+router.patch("/me/sheet-name", async (req, res) => {
+  const { sheetName } = req.body;
+
+  if (typeof sheetName !== "string") {
+    return res.status(400).json({ message: "Sheet name is required." });
+  }
+
+  try {
+    const employee = await Employee.findById(req.auth.sub);
+    if (!employee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+
+    employee.sheetName = sheetName.trim();
+    await employee.save({ validateModifiedOnly: true });
+    res.json({ employee: await prepareEmployee(employee) });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
 router.put("/:id", async (req, res) => {
   const {
     name,
@@ -223,6 +244,7 @@ router.put("/:id", async (req, res) => {
     presentAddress,
     permanentAddress,
     bio,
+    sheetName,
   } = req.body;
 
   if (!name?.trim() || !email?.trim() || !title?.trim() || !role) {
@@ -252,6 +274,7 @@ router.put("/:id", async (req, res) => {
     employee.presentAddress = presentAddress?.trim() ?? "";
     employee.permanentAddress = permanentAddress?.trim() ?? "";
     if (bio !== undefined) employee.bio = bio?.trim() ?? employee.bio;
+    if (sheetName !== undefined) employee.sheetName = sheetName?.trim() ?? "";
     employee.avatar = avatarForRole(role);
 
     await employee.save({ validateModifiedOnly: true });
@@ -277,6 +300,7 @@ router.post("/", async (req, res) => {
     avatar,
     bio,
     projects,
+    sheetName,
   } = req.body;
 
   if (!name?.trim() || !email?.trim() || !title?.trim() || !role) {
@@ -303,6 +327,7 @@ router.post("/", async (req, res) => {
       permanentAddress: permanentAddress?.trim() ?? "",
       avatar: avatar ?? (role === "artist" ? "🎨" : role === "management" ? "🎬" : role === "IT" ? "🖥️" : "💼"),
       bio: bio?.trim() || "Newest member of the crew ✨",
+      sheetName: sheetName?.trim() ?? "",
       projects: projects ?? [],
       leaves: [],
       leavesYear: CURRENT_YEAR(),

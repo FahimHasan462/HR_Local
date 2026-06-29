@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/context/ThemeContext";
 import Index from "./pages/Index.tsx";
+import Todo from "./pages/Todo.tsx";
+import Profile from "./pages/Profile.tsx";
 import Linkboard from "./pages/Linkboard.tsx";
 import Register from "./pages/Register.tsx";
 import ForgotPassword from "./pages/ForgotPassword.tsx";
@@ -22,6 +24,22 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route
+              path="/todo"
+              element={
+                <AuthenticatedShell>
+                  <Todo />
+                </AuthenticatedShell>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <AuthenticatedShell>
+                  <Profile />
+                </AuthenticatedShell>
+              }
+            />
             <Route
               path="/linkboard"
               element={

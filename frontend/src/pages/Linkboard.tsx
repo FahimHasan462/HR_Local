@@ -259,7 +259,7 @@ const Linkboard = () => {
               <p className="text-sm font-semibold">{currentUser.name}</p>
               <p className="text-xs text-muted-foreground">{currentUser.title}</p>
             </div>
-            <RoleBadge role={currentUser.role} />
+            <RoleBadge role={currentUser.role} profileHref="/profile" />
             <Button variant="ghost" size="sm" onClick={signOut} className="gap-1.5">
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sign out</span>
@@ -271,9 +271,9 @@ const Linkboard = () => {
       <main className="container py-8">
         <div className="mb-6">
           <Button variant="ghost" size="sm" className="mb-4 gap-1.5" asChild>
-            <Link to="/">
+            <Link to="/todo">
               <ChevronLeft className="h-4 w-4" />
-              Back to dashboard
+              Back to to-do
             </Link>
           </Button>
 

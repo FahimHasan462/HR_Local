@@ -3,7 +3,7 @@ import { BonusStatus, HrComplaint, HrNotification } from "@/data/hrComplaints";
 import { asRole, LeaveRecord, LeaveType, Role } from "@/types/employee";
 import { apiFetch, getAuthToken, setAuthToken } from "@/lib/api";
 
-type LoginResult = { success: boolean; message?: string };
+type LoginResult = { success: boolean; message?: string; role?: Role };
 
 type Ctx = {
   currentUser: Employee | null;
@@ -23,6 +23,7 @@ type Ctx = {
   ) => Promise<boolean>;
   removeEmployee: (id: string) => Promise<boolean>;
   updateEmployee: (id: string, data: Partial<Employee>) => Promise<boolean>;
+  updateSheetName: (sheetName: string) => Promise<boolean>;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -44,6 +45,7 @@ type EmployeeInput = {
   nid?: string;
   presentAddress?: string;
   permanentAddress?: string;
+  sheetName?: string;
   avatar?: string;
   bio?: string;
   projects?: string[];
@@ -75,6 +77,7 @@ export type Employee = {
   nid?: string;
   presentAddress?: string;
   permanentAddress?: string;
+  sheetName?: string;
   avatar?: string;
   bio?: string;
   projects?: string[];
@@ -109,6 +112,7 @@ const normalizeEmployee = (employee: EmployeeInput): Employee => {
     nid: employee.nid ?? "",
     presentAddress: employee.presentAddress ?? "",
     permanentAddress: employee.permanentAddress ?? "",
+    sheetName: employee.sheetName ?? "",
     avatar: employee.avatar || avatarFor(role),
     bio: employee.bio ?? "Team member",
     projects: employee.projects ?? [],
@@ -251,7 +255,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
       setAuthToken(data.token);
       await bootstrapSession(data.employee);
-      return { success: true };
+      return { success: true, role: asRole(data.employee.role) };
     } catch (error) {
       const raw = error instanceof Error ? error.message : "Unable to reach server.";
       const message =
@@ -364,6 +368,23 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const updateSheetName = async (sheetName: string): Promise<boolean> => {
+    if (!currentUser?.id) return false;
+
+    try {
+      const { ok, data } = await apiFetch<{ employee?: EmployeeInput }>(
+        "/employees/me/sheet-name",
+        { method: "PATCH", body: JSON.stringify({ sheetName }) },
+      );
+      if (!ok || !data?.employee) return false;
+      const updated = normalizeEmployee(data.employee);
+      setList((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const markAllHrNotificationsRead = async () => {
     await apiFetch("/notifications/mark-all-read", { method: "PATCH" });
     setHrNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -425,6 +446,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         addEmployee,
         removeEmployee,
         updateEmployee,
+        updateSheetName,
       }}
     >
       {children}

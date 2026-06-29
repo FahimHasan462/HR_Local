@@ -25,6 +25,7 @@ type FormState = {
   presentAddress: string;
   permanentAddress: string;
   bio: string;
+  sheetName: string;
 };
 
 const toForm = (emp: Employee): FormState => ({
@@ -39,6 +40,7 @@ const toForm = (emp: Employee): FormState => ({
   presentAddress: emp.presentAddress ?? "",
   permanentAddress: emp.permanentAddress ?? "",
   bio: emp.bio ?? "",
+  sheetName: emp.sheetName ?? "",
 });
 
 type Props = {
@@ -101,6 +103,12 @@ export const EditEmployeeDialog = ({ employee, open, onOpenChange }: Props) => {
           <Field label="Phone number" value={form.phone} onChange={(v) => update("phone", v)} />
           <Field label="Joining date" type="date" value={form.joined} onChange={(v) => update("joined", v)} />
           <Field label="NID number" value={form.nid} onChange={(v) => update("nid", v)} />
+          <Field
+            label="Sheet artist name"
+            value={form.sheetName}
+            onChange={(v) => update("sheetName", v)}
+            className="space-y-1.5 sm:col-span-2"
+          />
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Bio</Label>
             <Textarea rows={2} value={form.bio} onChange={(e) => update("bio", e.target.value)} />
@@ -125,9 +133,9 @@ export const EditEmployeeDialog = ({ employee, open, onOpenChange }: Props) => {
 };
 
 const Field = ({
-  label, value, onChange, type = "text",
-}: { label: string; value: string; onChange: (v: string) => void; type?: string }) => (
-  <div className="space-y-1.5">
+  label, value, onChange, type = "text", className,
+}: { label: string; value: string; onChange: (v: string) => void; type?: string; className?: string }) => (
+  <div className={className ?? "space-y-1.5"}>
     <Label>{label}</Label>
     <Input type={type} value={value} onChange={(e) => onChange(e.target.value)} />
   </div>

@@ -25,6 +25,7 @@ const empty = {
   nid: "",
   presentAddress: "",
   permanentAddress: "",
+  sheetName: "",
 };
 
 export const AddEmployeeDialog = () => {
@@ -82,6 +83,7 @@ export const AddEmployeeDialog = () => {
           <Field label="Phone number" value={form.phone} onChange={(v) => update("phone", v)} />
           <Field label="Joining date" type="date" value={form.joined} onChange={(v) => update("joined", v)} />
           <Field label="NID number" value={form.nid} onChange={(v) => update("nid", v)} />
+          <Field label="Sheet artist name" value={form.sheetName} onChange={(v) => update("sheetName", v)} />
           <div className="space-y-1.5 sm:col-span-2">
             <Label>Present address</Label>
             <Textarea rows={2} value={form.presentAddress} onChange={(e) => update("presentAddress", e.target.value)} />

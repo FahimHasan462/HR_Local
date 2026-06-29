@@ -8,6 +8,7 @@ import { EditEmployeeDialog } from "./EditEmployeeDialog";
 import { LeaveDialog } from "./LeaveDialog";
 import { HrComplaintsCard } from "./HrComplaintsCard";
 import { HrLeavesThisMonthCard } from "./HrLeavesThisMonthCard";
+import { SheetConfigManager } from "./SheetConfigManager";
 import { LinkboardNavButton } from "./LinkboardNavButton";
 import { Button } from "@/components/ui/button";
 import {
@@ -220,6 +221,7 @@ export const EmployeeList = ({
 
       {currentUser?.role === "hr" && (
         <>
+          <SheetConfigManager />
           <HrLeavesThisMonthCard />
           <HrComplaintsCard />
         </>

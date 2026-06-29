@@ -39,12 +39,17 @@ app.use("/api/employees", require("./routes/employees"));
 app.use("/api/complaints", require("./routes/complaints"));
 app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/posts", require("./routes/posts"));
+app.use("/api/sheets", require("./routes/sheets"));
+app.use("/api/todo", require("./routes/todo"));
 
+
+const { seedSheetConfigs } = require("./seedSheetConfigs");
 
 mongoose
-  .connect(process.env.MONGODB_URI, {dbName: process.env.MONGODB_DB})
-  .then(() => {
+  .connect(process.env.MONGODB_URI, { dbName: process.env.MONGODB_DB })
+  .then(async () => {
     console.log("Connected to Database:", mongoose.connection.name);
+    await seedSheetConfigs();
     app.listen(process.env.PORT, () => {
       console.log(`Server running on http://localhost:${process.env.PORT}`);
     });

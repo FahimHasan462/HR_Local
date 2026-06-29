@@ -22,7 +22,7 @@ export const Login = () => {
       return;
     }
     setError("");
-    navigate("/", { replace: true });
+    navigate(result.role === "hr" ? "/" : "/todo", { replace: true });
   };
 
   return (

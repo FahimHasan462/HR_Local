@@ -21,6 +21,7 @@ const employeeSchema = new mongoose.Schema({
   nid:              { type: String },
   presentAddress:   { type: String },
   permanentAddress: { type: String },
+  sheetName:        { type: String, default: "" },
   sickLeave:        { type: Number, default: 0 },
   casualLeave:      { type: Number, default: 0 },
   unpaidLeave:      { type: Number, default: 0 },

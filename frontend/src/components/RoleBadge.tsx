@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { asRole, roleMeta, type Role } from "@/types/employee";
 import { cn } from "@/lib/utils";
 
@@ -8,8 +9,19 @@ const styles: Record<Role, string> = {
   IT: "bg-gradient-info text-info-foreground",
 };
 
-export const RoleBadge = ({ role, className }: { role?: Role | string; className?: string }) => {
+export const RoleBadge = ({
+  role,
+  className,
+  profileHref,
+}: {
+  role?: Role | string;
+  className?: string;
+  profileHref?: string;
+}) => {
   const r = asRole(role);
+  const label = roleMeta[r].label;
+  const showProfileLink = profileHref && r !== "hr";
+
   return (
     <span
       className={cn(
@@ -19,7 +31,13 @@ export const RoleBadge = ({ role, className }: { role?: Role | string; className
       )}
     >
       <span>{roleMeta[r].emoji}</span>
-      {roleMeta[r].label}
+      {showProfileLink ? (
+        <Link to={profileHref} className="hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm">
+          {label}
+        </Link>
+      ) : (
+        label
+      )}
     </span>
   );
 };
